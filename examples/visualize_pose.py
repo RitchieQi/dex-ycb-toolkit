@@ -10,7 +10,7 @@ import trimesh
 import torch
 import cv2
 import matplotlib.pyplot as plt
-
+import json
 from manopth.manolayer import ManoLayer
 
 from dex_ycb_toolkit.factory import get_dataset
@@ -40,12 +40,13 @@ def create_scene(sample, obj_file):
 
   # Load poses.
   label = np.load(sample['label_file'])
-  pose_y = label['pose_y']
+  pose_y = [label['pose_y'][0]]
   pose_m = label['pose_m']
 
   # Load YCB meshes.
   mesh_y = []
-  for i in sample['ycb_ids']:
+  #for i in sample['ycb_ids']:
+  for i in [sample['ycb_ids'][0]]:
     mesh = trimesh.load(obj_file[i])
     mesh = pyrender.Mesh.from_trimesh(mesh)
     mesh_y.append(mesh)
@@ -69,6 +70,7 @@ def create_scene(sample, obj_file):
   betas = torch.tensor(sample['mano_betas'], dtype=torch.float32).unsqueeze(0)
 
   # Add MANO meshes.
+
   if not np.all(pose_m == 0.0):
     pose = torch.from_numpy(pose_m)
     vert, _ = mano_layer(pose[:, 0:48], betas, pose[:, 48:51])
@@ -89,16 +91,16 @@ def create_scene(sample, obj_file):
 
 
 def main():
-  name = 's0_train'
+  name = 's1_train'
   dataset = get_dataset(name)
 
-  idx = 70
+  idx = 50
 
   sample = dataset[idx]
+  print(json.dumps(sample, indent=4))
 
   scene_r = create_scene(sample, dataset.obj_file)
   scene_v = create_scene(sample, dataset.obj_file)
-
   print('Visualizing pose in camera view using pyrender renderer')
 
   r = pyrender.OffscreenRenderer(viewport_width=dataset.w,
