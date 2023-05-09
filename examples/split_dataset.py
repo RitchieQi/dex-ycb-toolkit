@@ -13,8 +13,20 @@ import pyrender
 import trimesh
 import cv2
 import matplotlib.pyplot as plt
+from scipy.spatial.distance import cdist
 
 
+def center_vert_bbox(vertices, bbox_center=None, bbox_scale=None, scale=False):
+    if bbox_center is None:
+        bbox_center = (vertices.min(0) + vertices.max(0)) / 2
+    vertices = vertices - bbox_center
+    if scale:
+        if bbox_scale is None:
+            bbox_scale = np.linalg.norm(vertices, 2, 1).max()
+        vertices = vertices / bbox_scale
+    else:
+        bbox_scale = 1
+    return vertices, bbox_center, bbox_scale
 
 class dexycb():
     def __init__(self,setup,split):
@@ -22,12 +34,103 @@ class dexycb():
         self.filter_no_hand = True
         self.filter_no_contact = True
         self.filter_threshold = 50
-        self.filter_hand_side = 'right'
-
+        self.use_right_hand = True
+        self.split = split
 
     def __len__(self):
         return len(self.getdata)
+
     
+    def iterate(self):
+        #sample = self.getdata[idx]
+        objdir = 'data/dexycb/{}/obj_mesh/'.format(self.split)
+        handdir = 'data/dexycb/{}/hand_mesh/'.format(self.split)
+        metadir = 'data/dexycb/{}/meta/'.format(self.split)
+
+        os.makedirs(objdir,exist_ok = True)
+        os.makedirs(handdir,exist_ok = True)
+        os.makedirs(metadir,exist_ok = True)
+        count = 0
+        if self.filter_no_hand and self.filter_no_contact and self.use_right_hand:
+            for i,sample in tqdm(enumerate(self.getdata),total = dex.__len__()):
+                if sample["mano_side"] == 'left':
+                    continue
+                if np.all(self.get_joint2d(sample) == -1.0):
+                    continue
+                if cdist(self.get_obj_verts_transmed(sample),self.get_joint3d(sample)).min()*1000 > self.filter_threshold:
+                    continue
+                hand_mesh,obj_mesh = self.get_mesh(sample)
+                obj_mesh.visual = trimesh.visual.ColorVisuals()
+                
+                hand_mesh.export(handdir + '{}.obj'.format(count))
+                obj_mesh.export(objdir + '{}.obj'.format(count))
+                json.dump(sample,open(metadir + '{}.json'.format(count),'w'))
+                
+                count += 1
+
+    def load_label(self,sample):
+        label = np.load(sample['label_file'])
+        return label
+
+    def get_joint2d(self,sample):
+        label = self.load_label(sample)
+        return label['joint_2d'].squeeze(0)
+
+    def get_joint3d(self,sample):
+        label = self.load_label(sample)
+        return label['joint_3d'].squeeze(0)
+
+    def get_obj_mesh(self,obj_index):
+        return trimesh.load(self.getdata.obj_file[obj_index])
+
+    def get_obj_transm(self,sample):
+        label = self.load_label(sample)
+        transm = label['pose_y'][sample['ycb_grasp_ind']]
+        obj_index = sample['ycb_ids'][sample['ycb_grasp_ind']]
+        obj_mesh = self.get_obj_mesh(obj_index)
+        verts,offset,bbox_scale = center_vert_bbox(obj_mesh.vertices)
+        R,t = transm[:3,:3],transm[:,3:]
+        _t = R @ offset.reshape(3,1) + t
+        new_transm = np.concatenate([np.concatenate([R,_t],axis=1),
+                                    np.array([[0.,0.,0.,1.]],dtype=np.float32)])
+        return new_transm.astype(np.float32),verts,offset
+
+    def get_obj_verts_transmed(self,sample):
+        transm,verts,_ = self.get_obj_transm(sample)
+        R,t = transm[:3,:3],transm[:3,[3]]
+        verts = (R @ verts.T + t).T
+        return verts
+
+    def get_mesh(self,sample):
+        label = self.load_label(sample)
+
+        obj_index = sample['ycb_ids'][sample['ycb_grasp_ind']]
+        obj_mesh = self.get_obj_mesh(obj_index)
+        pose_obj = label['pose_y'][sample['ycb_grasp_ind']]
+        pose_obj = np.vstack((pose_obj, np.array([[0, 0, 0, 1]], dtype=np.float32)))
+        pose_obj[1] *= -1
+        pose_obj[2] *= -1
+        transformed_mesh_obj = obj_mesh.apply_transform(pose_obj)
+
+        mano_layer = ManoLayer(flat_hand_mean=False,
+                    ncomps=45,
+                    side=sample['mano_side'],
+                    mano_root='manopth/mano/models',
+                    use_pca=True)
+        faces = mano_layer.th_faces.numpy()
+        betas = torch.tensor(sample['mano_betas'], dtype=torch.float32).unsqueeze(0)
+        pose_m = label['pose_m']
+        pose = torch.from_numpy(pose_m)
+        vert, _ = mano_layer(pose[:, 0:48], betas, pose[:, 48:51])
+        vert /= 1000
+        vert = vert.view(778, 3)
+        vert = vert.numpy()
+        vert[:, 1] *= -1
+        vert[:, 2] *= -1
+        mesh_hand = trimesh.Trimesh(vertices=vert, faces=faces)
+        return mesh_hand,transformed_mesh_obj
+
+
     def get_camera(self,idx,scene):
         fx = self.getdata[idx]['intrinsics']['fx']
         fy = self.getdata[idx]['intrinsics']['fy']
@@ -152,10 +255,10 @@ def creat_dataset():
             mesh_obj,mesh_hand = dex.get_mesh(idx)
             # print('data/dexycb/test/obj_mesh/{}.obj'.format(count))
             mesh_obj.visual = trimesh.visual.ColorVisuals()
-            mesh_hand.export('data/dexycb/train/hand_mesh/{}.obj'.format(idx))
+            mesh_hand.export('data/dexycb/train/hand_mesh/{}.obj'.format(count))
 
-            mesh_obj.export('data/dexycb/train/obj_mesh/{}.obj'.format(idx))
-            json.dump(meta,open('data/dexycb/train/label/{}.json'.format(idx),'w'))
+            mesh_obj.export('data/dexycb/train/obj_mesh/{}.obj'.format(count))
+            json.dump(meta,open('data/dexycb/train/label/{}.json'.format(count),'w'))
             #np.save('data/dexycb/train/label/{}.npy'.format(count),np.vstack((pose_y,pose_m)))
             
             count = count + 1
@@ -184,8 +287,8 @@ def creat_dataset():
     #         continue
 
 if __name__ == '__main__':
-    creat_dataset()
-    #dex = dexycb('s1', 'train')
-    #dex.plot(50)
+    #creat_dataset()
+    dex = dexycb('s1', 'test')
+    dex.iterate()
     
 

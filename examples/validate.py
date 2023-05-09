@@ -15,12 +15,12 @@ import cv2
 import matplotlib.pyplot as plt
 
 #read the dataset
-datadir = osp.join(osp.dirname(osp.abspath(__file__)),'..','data','dexycb','train')
+datadir = osp.join(osp.dirname(osp.abspath(__file__)),'..','data','dexycb','test')
 
 obj_mesh_dir = osp.join(datadir, 'obj_mesh')
 hand_mesh_dir = osp.join(datadir, 'hand_mesh')
 
-idx = 104777
+idx = 12613
 
 #load the mesh
 mesh_obj = trimesh.load(osp.join(obj_mesh_dir,'{}.obj'.format(idx)))
