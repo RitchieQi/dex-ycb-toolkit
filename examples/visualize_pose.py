@@ -12,6 +12,8 @@ import cv2
 import matplotlib.pyplot as plt
 import json
 from manopth.manolayer import ManoLayer
+import os
+osp = os.path
 
 from dex_ycb_toolkit.factory import get_dataset
 
@@ -40,6 +42,9 @@ def create_scene(sample, obj_file):
 
   # Load poses.
   label = np.load(sample['label_file'])
+  for component in label:
+    print(component)
+    print(label[component])
   pose_y = [label['pose_y'][0]]
   pose_m = label['pose_m']
 
@@ -93,7 +98,7 @@ def create_scene(sample, obj_file):
 def main():
   name = 's1_train'
   dataset = get_dataset(name)
-
+  print(dataset.obj_file)
   idx = 50
 
   sample = dataset[idx]
@@ -118,6 +123,8 @@ def main():
 
   plt.imshow(im)
   plt.tight_layout()
+  save_path = osp.join(osp.dirname(osp.abspath(__file__)), '..','test_real.png')
+  cv2.imwrite(save_path, im_real[:, :, ::-1])
   plt.show()
 
   print('Visualizing pose using pyrender 3D viewer')

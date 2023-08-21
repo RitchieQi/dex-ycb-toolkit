@@ -28,6 +28,40 @@ def center_vert_bbox(vertices, bbox_center=None, bbox_scale=None, scale=False):
         bbox_scale = 1
     return vertices, bbox_center, bbox_scale
 
+
+
+def seal(mesh_to_seal):
+    circle_v_id = np.array([108, 79, 78, 121, 214, 215, 279, 239, 234, 92, 38, 122, 118, 117, 119, 120], dtype = np.int32)
+    center = (mesh_to_seal.vertices[circle_v_id, :]).mean(0)
+
+    mesh_to_seal.vertices = np.vstack([mesh_to_seal.vertices, center])
+    center_v_id = mesh_to_seal.vertices.shape[0] - 1
+
+    for i in range(circle_v_id.shape[0]):
+        new_faces = [circle_v_id[i-1], circle_v_id[i], center_v_id] 
+        mesh_to_seal.faces = np.vstack([mesh_to_seal.faces, new_faces])
+    return mesh_to_seal
+
+def seal2(mesh_to_seal):
+    close_face = np.array([
+            [92, 38, 122],
+            [234, 92, 122],
+            [239, 234, 122],
+            [279, 239, 122],
+            [215, 279, 122],
+            [215, 122, 118],
+            [215, 118, 117],
+            [215, 117, 119],
+            [215, 119, 120],
+            [215, 120, 108],
+            [215, 108, 79],
+            [215, 79, 78],
+            [215, 78, 121],
+            [214, 215, 121],
+        ])
+    mesh_to_seal.faces = np.vstack([mesh_to_seal.faces, close_face])
+    return mesh_to_seal
+
 class dexycb():
     def __init__(self,setup,split):
         self.getdata = DexYCBDataset(setup,split)
@@ -52,7 +86,7 @@ class dexycb():
         os.makedirs(metadir,exist_ok = True)
         count = 0
         if self.filter_no_hand and self.filter_no_contact and self.use_right_hand:
-            for i,sample in tqdm(enumerate(self.getdata),total = dex.__len__()):
+            for i,sample in tqdm(enumerate(self.getdata),total = self.__len__()):
                 if sample["mano_side"] == 'left':
                     continue
                 if np.all(self.get_joint2d(sample) == -1.0):
@@ -60,7 +94,6 @@ class dexycb():
                 if cdist(self.get_obj_verts_transmed(sample),self.get_joint3d(sample)).min()*1000 > self.filter_threshold:
                     continue
                 hand_mesh,obj_mesh = self.get_mesh(sample)
-                obj_mesh.visual = trimesh.visual.ColorVisuals()
                 
                 hand_mesh.export(handdir + '{}.obj'.format(count))
                 obj_mesh.export(objdir + '{}.obj'.format(count))
@@ -111,6 +144,8 @@ class dexycb():
         pose_obj[1] *= -1
         pose_obj[2] *= -1
         transformed_mesh_obj = obj_mesh.apply_transform(pose_obj)
+        transformed_mesh_obj.visual = trimesh.visual.ColorVisuals()
+        transformed_mesh_obj = self.mesh_template(transformed_mesh_obj)
 
         mano_layer = ManoLayer(flat_hand_mean=False,
                     ncomps=45,
@@ -128,8 +163,12 @@ class dexycb():
         vert[:, 1] *= -1
         vert[:, 2] *= -1
         mesh_hand = trimesh.Trimesh(vertices=vert, faces=faces)
-        return mesh_hand,transformed_mesh_obj
+        seal_mesh_hand = seal(mesh_hand)
+        return seal_mesh_hand,transformed_mesh_obj
 
+    def mesh_template(self,mesh):
+        new_mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
+        return new_mesh
 
     def get_camera(self,idx,scene):
         fx = self.getdata[idx]['intrinsics']['fx']
@@ -288,7 +327,11 @@ def creat_dataset():
 
 if __name__ == '__main__':
     #creat_dataset()
-    dex = dexycb('s1', 'test')
-    dex.iterate()
+    dex_train = dexycb('s1', 'train')
+    dex_train.iterate()
     
+    dex_test = dexycb('s1', 'test')
+    dex_test.iterate()
+    
+
 

@@ -16,16 +16,17 @@ import matplotlib.pyplot as plt
 
 #read the dataset
 datadir = osp.join(osp.dirname(osp.abspath(__file__)),'..','data','dexycb','test')
+#datadir = osp.join(osp.dirname(osp.abspath(__file__)),'..','..','Downloads','mesh_data')
 
 obj_mesh_dir = osp.join(datadir, 'obj_mesh')
 hand_mesh_dir = osp.join(datadir, 'hand_mesh')
 
-idx = 12613
-
+#idx = '3_20200820_135508_836212060125_9'
+idx = 30
 #load the mesh
 mesh_obj = trimesh.load(osp.join(obj_mesh_dir,'{}.obj'.format(idx)))
 mesh_hand = trimesh.load(osp.join(hand_mesh_dir,'{}.obj'.format(idx)))
-
+print(len(mesh_hand.vertices))
 # pyrender
 scene = pyrender.Scene(bg_color=np.array([0.0, 0.0, 0.0, 0.0]),
                 ambient_light=np.array([1.0, 1.0, 1.0]))
