@@ -77,35 +77,20 @@ class dexycb():
         return len(self.getdata)
 
     def mano_process(self,sample):
-        lable = self.load_label(sample)
-        pose_m = lable['pose_m'].squeeze(0)
-        print(pose_m.shape)
-        global_rot = np.array(R.from_euler('xyz',pose_m[:3]).as_matrix(), dtype=np.float32)
-        global_trans = pose_m[-3:]
-        joint_3d = lable['joint_3d'] - global_trans
-        joint = np.matmul(joint_3d, np.linalg.inv(global_rot))
-        rot1 = np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]],dtype=np.float32)
-        rot2 = np.array([[1, 0, 0],[0, 0, 1],[0, -1, 0]],dtype=np.float32)
-        joint = np.matmul(joint, rot1)
-        joint = np.matmul(joint, rot2)
-
-        points = lable['pose_y'][sample['ycb_grasp_ind']][:3,3] - global_trans
-        points = np.matmul(points, np.linalg.inv(global_rot))
-        points = np.matmul(points, rot1)
-        points = np.matmul(points, rot2)
-        return joint,points
-    
-    def mano_inverse(self,joint,points,sample):
+        #init mano layer
+        mano_layer = ManoLayer(flat_hand_mean=False,
+                    ncomps=45,
+                    side=sample['mano_side'],
+                    mano_root='manopth/mano/models',
+                    use_pca=True)
+              
         label = self.load_label(sample)
-        pose_m = label['pose_m'].squeeze(0)
-        global_rot = np.array(R.from_euler('xyz',pose_m[:3]).as_matrix(), dtype=np.float32)
-        rot1 = np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]],dtype=np.float32)
-        rot2 = np.array([[1, 0, 0],[0, 0, 1],[0, -1, 0]],dtype=np.float32)
-        joint = np.matmul(joint, np.linalg.inv(rot2))
-        joint = np.matmul(joint, np.linalg.inv(rot1))
-        joint = np.matmul(joint, global_rot)
-        joint = joint + pose_m[-3:]
-        
+        pose_params = label['pose_m']
+        obj_pose = label['pose_y'][sample['ycb_grasp_ind']]
+
+        #TODO: jt vt from mano layer, nomalize jt and obj center
+
+        pass
 
 
     def iterate(self):
@@ -421,7 +406,12 @@ if __name__ == '__main__':
     # dex_test.iterate()
     
     dex_train = dexycb('s1', 'train')
-    dex_train.viz()
+    label = dex_train.load_label(dex_train.getdata[500])
+    print(dex_train.getdata[500])
+    print(label["pose_m"])
+    print(label["joint_3d"])
+
+    #dex_train.viz()
     #dex_train.opencv_camera(dex_train.getdata[0])
 
 

@@ -78,7 +78,7 @@ def create_scene(sample, obj_file):
 
   if not np.all(pose_m == 0.0):
     pose = torch.from_numpy(pose_m)
-    vert, _ = mano_layer(pose[:, 0:48], betas, pose[:, 48:51])
+    vert, _, _ = mano_layer(pose[:, 0:48], betas, pose[:, 48:51])
     vert /= 1000
     vert = vert.view(778, 3)
     vert = vert.numpy()
